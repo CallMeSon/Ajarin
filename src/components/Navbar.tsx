@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 
 const navLinks = [
   { href: "#kurikulum", label: "Kurikulum" },
@@ -63,22 +64,29 @@ export default function Navbar() {
 
         {/* Desktop Right Buttons */}
         <div className="hidden md:flex items-center gap-3">
-          <Button
-            variant="ghost"
-            className={`text-sm font-medium ${
-              scrolled
-                ? "text-muted-foreground hover:text-foreground"
-                : "text-white/90 hover:text-white hover:bg-white/10"
-            }`}
+          <Link
+            href="/login"
+            className={buttonVariants({
+              variant: "ghost",
+              className: `text-sm font-medium ${
+                scrolled
+                  ? "text-muted-foreground hover:text-foreground"
+                  : "text-white/90 hover:text-white hover:bg-white/10"
+              }`,
+            })}
           >
             Masuk
-          </Button>
-          <Button
-            variant="default"
-            className="rounded-full px-6 text-sm font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-0.5"
+          </Link>
+          <Link
+            href="/login"
+            className={buttonVariants({
+              variant: "default",
+              className:
+                "rounded-full px-6 text-sm font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-0.5",
+            })}
           >
             Mulai Belajar
-          </Button>
+          </Link>
         </div>
 
         {/* Mobile Menu */}
@@ -114,15 +122,25 @@ export default function Navbar() {
                   </Link>
                 ))}
                 <div className="border-t border-border my-4" />
-                <Button variant="outline" className="w-full justify-center">
+                <Link
+                  href="/login"
+                  className={buttonVariants({
+                    variant: "outline",
+                    className: "w-full justify-center",
+                  })}
+                >
                   Masuk
-                </Button>
-                <Button
-                  variant="default"
-                  className="w-full justify-center rounded-full shadow-lg shadow-primary/25"
+                </Link>
+                <Link
+                  href="/login"
+                  className={buttonVariants({
+                    variant: "default",
+                    className:
+                      "w-full justify-center rounded-full shadow-lg shadow-primary/25",
+                  })}
                 >
                   Mulai Belajar
-                </Button>
+                </Link>
               </nav>
             </SheetContent>
           </Sheet>

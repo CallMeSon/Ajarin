@@ -1,0 +1,247 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  mentee
+  mentor
+  admin
+}
+
+enum RequestStatus {
+  aktif
+  matched
+  selesai
+  ditutup
+}
+
+enum ProposalStatus {
+  pending
+  diterima
+  ditolak
+}
+
+enum MatchStatus {
+  aktif
+  selesai
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ReportReason {
+  penipuan
+  konten_tidak_pantas
+  tidak_profesional
+  lainnya
+}
+
+enum ReportStatus {
+  open
+  resolved
+  dismissed
+}
+
+// ─────────────────────────────────────────────
+// TABLES
+// ─────────────────────────────────────────────
+
+/// Master data pengguna platform Ajarin
+model User {
+  id                  Int      @id @default(autoincrement())
+  googleId            String?  @unique @map("google_id") @db.VarChar(255)
+  email               String   @unique @db.VarChar(255)
+  name                String   @db.VarChar(100)
+  username            String?  @unique @db.VarChar(50)
+  passwordHash        String?  @map("password_hash") @db.VarChar(255)
+  avatarUrl           String?  @map("avatar_url")
+  role                Role
+  bio                 String?
+  skillTags           String[] @map("skill_tags")
+  experienceYears     Int?     @map("experience_years") @db.SmallInt
+  availability        String?  @db.VarChar(100)
+  minPricePerSession  Int?     @map("min_price_per_session")
+  ratingAvg           Decimal  @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount         Int      @default(0) @map("rating_count")
+  onboardingCompleted Boolean  @default(false) @map("onboarding_completed")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  requests             Request[]            @relation("MenteeRequests")
+  proposals            Proposal[]           @relation("MentorProposals")
+  menteeMatches        Match[]              @relation("MenteeMatches")
+  mentorMatches        Match[]              @relation("MentorMatches")
+  sentMessages         Message[]            @relation("SenderMessages")
+  givenReviews         Review[]             @relation("MenteeReviews")
+  receivedReviews      Review[]             @relation("MentorReviews")
+  mentorVerification   MentorVerification?
+  reportsFiled         Report[]             @relation("ReporterReports")
+  reportsReceived      Report[]             @relation("ReportedReports")
+
+  @@map("users")
+}
+
+/// Request belajar yang dibuat oleh Mentee
+model Request {
+  id           Int           @id @default(autoincrement())
+  menteeId     Int           @map("mentee_id")
+  title        String        @db.VarChar(100)
+  tags         String[]
+  level        String        @db.VarChar(10)
+  description  String
+  budgetMin    Int           @map("budget_min")
+  budgetMax    Int           @map("budget_max")
+  sessionCount Int           @map("session_count") @db.SmallInt
+  deadline     DateTime      @db.Date
+  status       RequestStatus @default(aktif)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  mentee    User       @relation("MenteeRequests", fields: [menteeId], references: [id], onDelete: Cascade)
+  proposals Proposal[]
+  match     Match?
+
+  @@index([menteeId])
+  @@index([status])
+  @@map("requests")
+}
+
+/// Proposal yang dikirim oleh Mentor ke sebuah Request
+model Proposal {
+  id            Int            @id @default(autoincrement())
+  requestId     Int            @map("request_id")
+  mentorId      Int            @map("mentor_id")
+  strength      String
+  method        String
+  message       String?
+  offeredPrice  Int            @map("offered_price")
+  status        ProposalStatus @default(pending)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  mentor  User    @relation("MentorProposals", fields: [mentorId], references: [id], onDelete: Cascade)
+  match   Match?
+
+  // Satu Mentor hanya bisa mengirim satu proposal per request
+  @@unique([requestId, mentorId])
+  @@index([requestId])
+  @@index([mentorId])
+  @@map("proposals")
+}
+
+/// Match antara Mentee dan Mentor setelah proposal diterima
+model Match {
+  id          Int         @id @default(autoincrement())
+  requestId   Int         @unique @map("request_id")
+  proposalId  Int         @unique @map("proposal_id")
+  menteeId    Int         @map("mentee_id")
+  mentorId    Int         @map("mentor_id")
+  status      MatchStatus @default(aktif)
+  matchedAt   DateTime    @default(now()) @map("matched_at") @db.Timestamptz
+  completedAt DateTime?   @map("completed_at") @db.Timestamptz
+  // Untuk auto-confirm: jika Mentee tidak konfirmasi setelah 48 jam, sistem auto-confirm
+  validationInitiatedAt DateTime? @map("validation_initiated_at") @db.Timestamptz
+
+  // Relations
+  request  Request   @relation(fields: [requestId], references: [id])
+  proposal Proposal  @relation(fields: [proposalId], references: [id])
+  mentee   User      @relation("MenteeMatches", fields: [menteeId], references: [id])
+  mentor   User      @relation("MentorMatches", fields: [mentorId], references: [id])
+  messages Message[]
+  review   Review?
+
+  @@map("matches")
+}
+
+/// Pesan chat antar Mentee dan Mentor yang sudah match
+model Message {
+  id       Int      @id @default(autoincrement())
+  matchId  Int      @map("match_id")
+  senderId Int      @map("sender_id")
+  content  String?
+  fileUrl  String?  @map("file_url")
+  fileName String?  @map("file_name") @db.VarChar(255)
+  sentAt   DateTime @default(now()) @map("sent_at") @db.Timestamptz
+
+  // Relations
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User  @relation("SenderMessages", fields: [senderId], references: [id])
+
+  @@index([matchId])
+  @@map("messages")
+}
+
+/// Review yang diberikan Mentee kepada Mentor setelah sesi selesai
+model Review {
+  id          Int      @id @default(autoincrement())
+  matchId     Int      @unique @map("match_id")
+  menteeId    Int      @map("mentee_id")
+  mentorId    Int      @map("mentor_id")
+  rating      Int      @db.SmallInt
+  comment     String
+  mentorReply String?  @map("mentor_reply")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  match  Match @relation(fields: [matchId], references: [id])
+  mentee User  @relation("MenteeReviews", fields: [menteeId], references: [id])
+  mentor User  @relation("MentorReviews", fields: [mentorId], references: [id])
+
+  @@index([mentorId])
+  @@map("reviews")
+}
+
+/// Data verifikasi skill untuk calon Mentor (disetujui oleh Admin)
+model MentorVerification {
+  id               Int                @id @default(autoincrement())
+  mentorId         Int                @unique @map("mentor_id")
+  portfolioUrl     String?            @map("portfolio_url")
+  linkedinUrl      String?            @map("linkedin_url")
+  githubUrl        String?            @map("github_url")
+  description      String?
+  status           VerificationStatus @default(pending)
+  adminNotes       String?            @map("admin_notes")
+  submittedAt      DateTime           @default(now()) @map("submitted_at") @db.Timestamptz
+  reviewedAt       DateTime?          @map("reviewed_at") @db.Timestamptz
+
+  // Relations
+  mentor User @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  @@map("mentor_verifications")
+}
+
+/// Laporan pelanggaran yang diajukan Mentee atau Mentor
+model Report {
+  id          Int          @id @default(autoincrement())
+  reporterId  Int          @map("reporter_id")
+  reportedId  Int          @map("reported_id")
+  reason      ReportReason
+  description String?
+  status      ReportStatus @default(open)
+  adminNotes  String?      @map("admin_notes")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  resolvedAt  DateTime?    @map("resolved_at") @db.Timestamptz
+
+  // Relations
+  reporter User @relation("ReporterReports", fields: [reporterId], references: [id])
+  reported User @relation("ReportedReports", fields: [reportedId], references: [id])
+
+  @@map("reports")
+}
